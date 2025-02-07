@@ -299,9 +299,16 @@ def fun5(dbConn):
         print("No speed violations on record for that year.")
     print()
 
+# Number of violations by year, given a camera ID
 def fun6(dbConn):
-    inp = input("\nEnter a camera ID: ")
+    print()
+    inp = input("Enter a camera ID: ")
     dbCursor = dbConn.cursor()
+    # so this query is a little different than the rest
+    # since we need to find number of violations every year for a specific camera,
+    # we use a subquery to combine both red and speed violations into one table
+    # then we select by year, and sum the total number of violations
+    # group by year and order by year
     sqlite = """
     SELECT strftime('%Y', v.Violation_Date) AS y, SUM(v.Num_Violations) AS tv
     FROM ( 
@@ -318,18 +325,22 @@ def fun6(dbConn):
     GROUP by y
     ORDER BY y ASC;
     """
+    # inputs two inputs as we need to filter by cameraID twice
     dbCursor.execute(sqlite, (inp,inp))
     rows = dbCursor.fetchall()
     
+    # this checks that thte rows are not empty, so that we dont output any additional text if it is
     if not rows:
         print("No cameras matching that ID were found in the database.")
         print()
         return
     
+    # this prints the year and the total amount of violations for that year 
     print(f"Yearly Violations for Camera {inp}")
     for x in rows:
         print(f"{x[0]} : {x[1]:,}")
     print()
+    # here is our first plot! this is pretty simple we just set the plot size, plot the x and y for all the rows, and set some labels
     plotinp = input("Plot? (y/n)")
     print()
     if plotinp == 'y':
@@ -342,9 +353,12 @@ def fun6(dbConn):
     else:
         return
 
+# Number of violations by month, given a camera ID and year
 def fun7(dbConn):
-    inpid = input("\nEnter a camera ID: ")
+    print()
+    inpid = input("Enter a camera ID: ")
     dbCursor = dbConn.cursor()
+    # i have 2 queries here for error handling. this first queries only job is to check if camera id is valid from user input
     camsql = """
     SELECT Camera_ID FROM (
         SELECT rc.Camera_ID
@@ -355,13 +369,17 @@ def fun7(dbConn):
         ) AS c
         WHERE c.Camera_ID = ?
     """
+    # this is the check to see if valid and then returns if not
     dbCursor.execute(camsql, (inpid,))
     row = dbCursor.fetchone()
     if not row:
         print("No cameras matching that ID were found in the database.")
         print()
         return
-
+    
+    # now we prompt for a year and then filter by that year and by camera id, so the previous check was needed
+    # we then select the month for each violation date, and sum the total number of violations for that month
+    # we do the same thing we did in func6, with the subquery and grouping by month instead of year
     inpyear = input("Enter a year: ")
     sqlite = """
     SELECT v.m, SUM(v.Num_Violations) AS tv
@@ -381,10 +399,12 @@ def fun7(dbConn):
     """
     dbCursor.execute(sqlite, (inpid, inpyear,inpid,inpyear))
     rows = dbCursor.fetchall()
+    # we then print the month and the total amount of violations for that month
     print(f"Monthly Violations for Camera {inpid} in {inpyear}")
     for x in rows:
         print(f"{x[0]}/{inpyear} : {x[1]:,}")
     print()
+    # another plot, same thing as the last really
     plotinp = input("Plot? (y/n)")
     print()
     if plotinp == 'y':
@@ -397,9 +417,15 @@ def fun7(dbConn):
     else:
         return
 
+# Compare the number of red light and speed violations, given a year
 def fun8(dbConn):
-    inpyear = input("\nEnter a year: ")
+    print()
+    inpyear = input("Enter a year: ")
     dbCursor = dbConn.cursor()
+    # this has some new things in the queries. so first we select yy-mm-dd to display in our output, but then we select the important part
+    # we find the violation date, and we set it by the date in relation to the year with %j, so 02/01 would be 32
+    # we then cast it to set it to an integer so we dont have to convert all the times we use it, also since its a tuple its harder to convert
+    # we then sum the total number of violations for that day, and group by day, and order by day
     redsql = """
     SELECT strftime('%Y-%m-%d', rv.Violation_Date) AS d, CAST(strftime('%j', rv.Violation_Date) AS INTEGER) AS days, SUM(rv.Num_Violations) AS tv
     FROM RedViolations AS rv
@@ -408,6 +434,7 @@ def fun8(dbConn):
     GROUP BY d
     ORDER BY d ASC;
     """
+    # same exact thing but for speed violations
     speedsql = """
     SELECT strftime('%Y-%m-%d', sv.Violation_Date) AS d, CAST(strftime('%j', sv.Violation_Date) AS INTEGER) AS days, SUM(sv.Num_Violations) AS tv
     FROM SpeedViolations AS sv
@@ -421,16 +448,25 @@ def fun8(dbConn):
     dbCursor.execute(speedsql, (inpyear,))
     speedrows = dbCursor.fetchall()
 
-
+    # creates a dict for both red and speed violations
+    # for each row in redrows, set the day in terms of year to the key,
+    # and total number of violations for the day as the value
     rd = {row[1]: row[2] for row in redrows}
     sd = {row[1]: row[2] for row in speedrows}
     
+    # this creates a list for all the days in the year
     days =list(range(1, 366))
+
+    # sets the x axis for plotting
     xred = days
     xspeed = days
+
+    # adds the amount of violations recorded in that day to the y
+    # if no violations exist for that day, set to 0
     yred = [rd.get(day, 0) for day in days]
     yspeed = [sd.get(day, 0) for day in days]   
 
+    # here we just print the first 5 and last 5 of each total violation in terms of days for the whole year with slicing
     print("Red Light Violations:")
     for x in redrows[:5]:
         print(f"{x[0]} {x[2]}")
@@ -443,6 +479,9 @@ def fun8(dbConn):
     for x in speedrows[-5:]:
         print(f"{x[0]} {x[2]}")
     print()
+    
+    # this plot uses the the xred,yred xspeed,yspeed we did before in order to show 0 for the data for days that are not in the database
+    # this is for examples like 2014, where there is no data available, but we still need to show in the plot
     plotinp = input("Plot? (y/n)")
     print()
     if plotinp == 'y':
@@ -457,17 +496,22 @@ def fun8(dbConn):
     else:
         return
 
+# Find cameras located on a street
 def fun9(dbConn):
-    inp = input("\nEnter a street name: ").strip()
+    print()
+    inp = input("Enter a street name: ")
+    # cleans the input for wildcards
     cleaninp = f"%{inp}%"
-
     dbCursor = dbConn.cursor()
+    # this one is back to simply, query selects all the points it needs for 
+    # the plot, for red cameras, filters by address, orders by cameraID
     redsql = """
     SELECT rc.Camera_ID, rc.Address, rc.Latitude, rc.Longitude
     from RedCameras AS rc
     WHERE rc.Address LIKE ?
     ORDER BY rc.Camera_ID ASC
     """
+    # same thing as redsql as always ;)
     speedsql = """
     SELECT sc.Camera_ID, sc.Address, sc.Latitude, sc.Longitude
     from SpeedCameras AS sc
@@ -479,41 +523,45 @@ def fun9(dbConn):
     dbCursor.execute(speedsql, (cleaninp,))
     speedrows = dbCursor.fetchall()
 
+    # checks that rows are not empty
     if not redrows and not speedrows:
-        print("There are no cameras located on that street.\n")
+        print("There are no cameras located on that street.")
+        print()
         return
 
     print()
     print(f"List of Cameras Located on Street: {inp}")
-
+    # prints the info we selected from the query 
     print("  Red Light Cameras:")
     for x in redrows:
         print(f"     {x[0]} : {x[1]} ({x[2]}, {x[3]})")
-    
     print("  Speed Cameras:")
     for x in speedrows:
         print(f"     {x[0]} : {x[1]} ({x[2]}, {x[3]})")
     print()
 
+    # so this is unique to the program
+    # first we overlay the image of chicago map
+    # then we plot the lat and long for each camera on the map, with different colors
+    # and setting a dot for each camera location
+    # we then annotate the cameraID for each camera, which overlays the cameraID for each one
+    # it looks pretty ugly and you cant even read it most of the time but hey thats what they wanted
     plotinp = input("Plot? (y/n)")
     print()
     if plotinp == 'y':
-        plt.plot([x[3] for x in redrows], [y[2] for y in redrows], color='red',marker='o',linestyle='-')  
-        plt.plot([x[3] for x in speedrows], [y[2] for y in speedrows], color='orange',marker='o',linestyle='-')  
-
-        for a in redrows:
-            plt.annotate(a[0], (a[3], a[2]))
-            plt.scatter(a[3], a[2], color='red', s=15)  
-        for a in speedrows:
-            plt.annotate(a[0], (a[3], a[2]))
-            plt.scatter(a[3], a[2], color='orange', s=15) 
-        
-        
         image = plt.imread("chicago.png")
         xydims = [-87.9277, -87.5569, 41.7012, 42.0868] # area covered by the map
         plt.imshow(image, extent=xydims)
-        plt.title(f"Cameras on Street: {inp}")
         
+        plt.plot([x[3] for x in redrows], [y[2] for y in redrows], color='red',marker='o',linestyle='-')  
+        plt.plot([x[3] for x in speedrows], [y[2] for y in speedrows], color='orange',marker='o',linestyle='-')  
+
+        for x in redrows:
+            plt.annotate(x[0], (x[3], x[2]))
+        for x in speedrows:
+            plt.annotate(x[0], (x[3], x[2]))
+        
+        plt.title(f"Cameras on Street: {inp}")
         plt.xlim([-87.9277, -87.5569])
         plt.ylim([41.7012, 42.0868])
         plt.show()
@@ -522,6 +570,8 @@ def fun9(dbConn):
 #
 # main
 #
+
+# this is for testing 
 if len(sys.argv) > 1:
     sys.stdin = open(sys.argv[1], 'r')
 
@@ -535,7 +585,8 @@ print("aspects of the Chicago traffic camera database.")
 print()
 print_stats(dbConn)
 print()
-    
+
+# while loop so user is always prompted with this after completing a function
 while True:
     print("Select a menu option:")
     print("  1. Find an intersection by name")
@@ -551,6 +602,11 @@ while True:
     
     inp = input("Your choice --> ")
 
+    # so we first chek that the user wants to leave
+    # we then check if the user inputted a number within the range
+    # inside a try except statement so that if the user inputs a string, it wont crash
+    # if user inputs integer that is not within range, 
+    # it reprints everything and asks for them to try again
     if inp == 'x':
         break
     try: 
@@ -562,6 +618,9 @@ while True:
     except ValueError:
         print("Error, unknown command, try again...")
 print("Exiting program.")
+
+# and thats the program!
+
 #
 # done
 #
