@@ -59,4 +59,4 @@ Matthew Witkowski - CS341 Spring 2025
 
 ## Acknowledgements
 - Chicago Data Portal for providing the open data
-- CS341 course staff for project requirements and guidance
+- course staff for project requirements and guidance
